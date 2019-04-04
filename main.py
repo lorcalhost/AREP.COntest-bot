@@ -29,10 +29,19 @@ def insecure_url(secure):
 
 
 session_cycle_count = 1
+session_fail_count = 0
+session_success_count = 0
 standard_wait_time = 1
 instance_number = sys.argv[1]
+allowed_errors = 5
+verbose = False
+
+if len(sys.argv)>2:
+    if sys.argv[2] == 'v':
+        verbose = True
 
 while True:
+    num_errors = 0
     data = json.loads(requests.get(
         'https://randomuser.me/api/').text)["results"][0]
 
@@ -42,7 +51,7 @@ while True:
     cell = new_phone_number()
     zip_code = data['location']['postcode']
 
-    print(f'Instance {instance_number} - Starting cycle {session_cycle_count}')
+    print(f'Instance {instance_number} - Starting cycle {session_cycle_count} - SUCCESS: {session_success_count} FAIL: {session_fail_count}')
 
     chrome_options = Options()
     chrome_options.add_argument("headless")
@@ -67,9 +76,12 @@ while True:
             email_box.click()
             email_box.send_keys(email)
         except:
-            print(f"Instance {instance_number} - Failed in input email")
+            num_errors += 1
+            if verbose:
+                print(f"Instance {instance_number} - Failed in input email")
             didpass = False
-
+            if num_errors >= allowed_errors:
+                break
 
     # Input first and last name
     didpass = False
@@ -81,22 +93,32 @@ while True:
             fname_box.click()
             fname_box.send_keys(first_name)
         except:
-            print(f"Instance {instance_number} - Failed in input first name")
+            num_errors += 1
+            if verbose:
+                print(
+                    f"Instance {instance_number} - Failed in input first name")
             time.sleep(standard_wait_time)
             didpass = False
+            if num_errors >= allowed_errors:
+                break
 
     didpass = False
     while didpass is False:
         try:
+            num_errors += 1
             didpass = True
             lname_box = driver.find_elements_by_xpath(
                 '//*[@id="lastName"]')[0]
             lname_box.click()
             lname_box.send_keys(last_name)
         except:
-            print(f"Instance {instance_number} - Failed in input last name")
+            if verbose:
+                print(
+                    f"Instance {instance_number} - Failed in input last name")
             time.sleep(standard_wait_time)
             didpass = False
+            if num_errors >= allowed_errors:
+                break
 
     # Select country code and input phone number
     didpass = False
@@ -109,9 +131,14 @@ while True:
                     "body").send_keys(Keys.ARROW_DOWN)
             driver.find_element_by_tag_name("body").send_keys(Keys.ENTER)
         except:
-            print(f"Instance {instance_number} - Failed in select country code")
+            num_errors += 1
+            if verbose:
+                print(
+                f"Instance {instance_number} - Failed in select country code")
             time.sleep(standard_wait_time)
             didpass = False
+            if num_errors >= allowed_errors:
+                break
     didpass = False
     while didpass is False:
         try:
@@ -121,9 +148,14 @@ while True:
             phone_box.click()
             phone_box.send_keys(cell)
         except:
-            print(f"Instance {instance_number} - Failed in input phone number")
+            num_errors += 1
+            if verbose:
+                print(
+                    f"Instance {instance_number} - Failed in input phone number")
             time.sleep(standard_wait_time)
             didpass = False
+            if num_errors >= allowed_errors:
+                break
 
     # Input zip code
     didpass = False
@@ -135,9 +167,13 @@ while True:
             zip_box.click()
             zip_box.send_keys(zip_code)
         except:
-            print(f"Instance {instance_number} - Failed in input ZIP")
+            num_errors += 1
+            if verbose:
+                print(f"Instance {instance_number} - Failed in input ZIP")
             time.sleep(standard_wait_time)
             didpass = False
+            if num_errors >= allowed_errors:
+                break
 
     # Submit
     didpass = False
@@ -147,9 +183,13 @@ while True:
             driver.find_elements_by_xpath(
                 '//*[@id="__layout"]/div/div[2]/div/div[2]/button/span')[0].click()
         except:
-            print(f"Instance {instance_number} - Failed in submit")
+            num_errors += 1
+            if verbose:
+                print(f"Instance {instance_number} - Failed in submit")
             time.sleep(standard_wait_time)
             didpass = False
+            if num_errors >= allowed_errors:
+                break
 
     time.sleep(5)
     driver.get(f"https://shitmail.me/mail/inbox/{email}")
@@ -164,25 +204,47 @@ while True:
                 '/html/body/div[2]/table/tbody/tr[1]/td[3]/a')[0]
             oldurl = inboxmail.get_attribute("href")
         except:
-            print(f"Instance {instance_number} - Failed in find email in inbox")
+            num_errors += 1
+            if verbose:
+                print(
+                f"Instance {instance_number} - Failed in find email in inbox")
             time.sleep(standard_wait_time)
             didpass = False
+            if num_errors >= allowed_errors:
+                break
 
     # Verify mail address
-    driver.get(insecure_url(oldurl))
-    wait = WebDriverWait(driver, 600)
     didpass = False
     while didpass is False:
         try:
             didpass = True
-            driver.find_elements_by_xpath(
-                '/html/body/table/tbody/tr[3]/td/table/tbody/tr[2]/td/table/tbody/tr/td/table/tbody/tr/td/a')[0].click()
-            time.sleep(5)
-        except:
-            print(f"Instance {instance_number} - Failed in verify")
+            a = requests.get(insecure_url(oldurl)).text
+            alreadydone = a.find(
+                'You’ve successfully registered for the Flume & Friends presale!')
+            if alreadydone == -1:
+                start = a.find('https://arep.co/api/v1/cn/email-verify/')
+                end = a.find('<', start)
+                driver.get(a[start:end])
+                wait = WebDriverWait(driver, 600)
+            else:
+                print(
+                    f"Instance {instance_number} - Already passed, no need to verify!")
+        except Exception as ex:
+            num_errors += 1
+            if verbose:
+                print(f"{ex}\nInstance {instance_number} - Failed in verify")
             time.sleep(standard_wait_time)
             didpass = False
-    driver.quit()
+            if num_errors >= allowed_errors:
+                break
 
-    print(f'\n--Instance {instance_number} - Cycle {session_cycle_count} success {first_name} {last_name}--\n')
-    session_cycle_count += 1
+    driver.quit()
+    if num_errors >= allowed_errors:
+        print(
+            f'--Instance {instance_number} - Cycle {session_cycle_count} too many errors,quitting..--')
+        session_fail_count += 1
+    else:
+        print(
+            f'--Instance {instance_number} - Cycle {session_cycle_count} success {first_name} {last_name}--')
+        session_cycle_count += 1
+        session_success_count += 1
