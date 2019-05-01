@@ -7,6 +7,7 @@ import json
 import requests
 import random
 import sys
+import argparse
 
 
 def new_phone_number():
@@ -28,17 +29,21 @@ def insecure_url(secure):
     return secure.replace("plain", "html")
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument('instance')
+parser.add_argument('link')
+parser.add_argument("-v", action="store_true", dest="isverbose", default=False)
+args = parser.parse_args()
+
 session_cycle_count = 1
 session_fail_count = 0
 session_success_count = 0
 standard_wait_time = 1
-instance_number = sys.argv[1]
 allowed_errors = 5
-verbose = False
+instance_number = args.instance
+referral = args.link
+verbose = args.isverbose
 
-if len(sys.argv)>2:
-    if sys.argv[2] == 'v':
-        verbose = True
 
 while True:
     num_errors = 0
@@ -62,7 +67,7 @@ while True:
     driver.get(f"https://shitmail.me/mail/inbox/{email}")
     wait = WebDriverWait(driver, 600)
     time.sleep(2)
-    driver.get("https://arep.co/xJbFWz/register")
+    driver.get(referral)
     wait = WebDriverWait(driver, 600)
 
     # Input email
